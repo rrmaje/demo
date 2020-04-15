@@ -98,21 +98,17 @@ public class KbKnowledgeAPI {
             return sysId;
         }
 
-        public void setSysId(String sysId) {
-            this.sysId = sysId;
-        }
-
         public String getLine() {
             return line;
-        }
-
-        public void setLine(String line) {
-            this.line = line;
         }
 
         public KbLine(String sysId, String line) {
             this.sysId = sysId;
             this.line = line;
+        }
+
+        void replace(String target, String replacement) {
+            this.line = this.line.replace(target, replacement);
         }
     }
 
@@ -184,7 +180,7 @@ public class KbKnowledgeAPI {
                     }
 
                     if (sysId != null) {
-                        line.setLine(line.getLine().replace(m.group(2), KB_SRC_PREFIX.concat(sysId)));
+                        line.replace(m.group(2), KB_SRC_PREFIX.concat(sysId));
                     }
                 } else if (isAttachmentRef(path)) {
                     sysId = pathToAttachmentSysId.get(m.group(2));
@@ -195,7 +191,7 @@ public class KbKnowledgeAPI {
                         }
                     }
                     if (sysId != null) {
-                        line.setLine(line.getLine().replace(m.group(2), SYS_ATTACHMENT_SRC_PREFIX.concat(sysId)));
+                        line.replace(m.group(2), SYS_ATTACHMENT_SRC_PREFIX.concat(sysId));
                     }
                 }
 
@@ -328,7 +324,7 @@ public class KbKnowledgeAPI {
 
             HttpResponse response = patchRecord(payload, KB_KNOWLEDGE_API_PATH + "/" + sysId);
 
-           handleTableApiResponse(response);
+            handleTableApiResponse(response);
 
             return getSysId(response);
 
@@ -382,12 +378,30 @@ public class KbKnowledgeAPI {
 
     }
 
-    private HttpResponse sendRecord(HttpEntityEnclosingRequestBase request) throws IOException {
+    private HttpClient httpClient;
 
+    KbKnowledgeAPI createDefaultHttpClient() {
+
+        this.httpClient = basicAuthHttpClient();
+
+        return this;
+    }
+
+    protected HttpClient basicAuthHttpClient() {
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(user, pass));
 
         HttpClient httpClient = HttpClientBuilder.create().setDefaultCredentialsProvider(provider).build();
+
+        return httpClient;
+    }
+
+    protected HttpResponse sendRecord(HttpEntityEnclosingRequestBase request) throws IOException {
+
+        if (this.httpClient == null) {
+            log.error("HttpClient not set");
+            throw new IllegalStateException("HttpClient not set");
+        }
 
         HttpResponse response = httpClient.execute(request);
         log.info("Response status: {}", response.getStatusLine().getStatusCode());
@@ -409,6 +423,10 @@ public class KbKnowledgeAPI {
         this.pass = pass;
         this.instance = instance;
         this.basedir = basedir;
+    }
+
+    public void setHttpClient(HttpClient httpClient) {
+        this.httpClient = httpClient;
     }
 
 }
