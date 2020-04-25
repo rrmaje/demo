@@ -37,7 +37,7 @@ public class DemoApplication {
 
 		final KbKnowledgeAPI demo = new KbKnowledgeAPI(user, pass, instance, Paths.get(args[0]));
 
-		demo.createDefaultHttpClient();
+		demo.withDefaultHttpClient().withKbKnowledgeBase();
 
 		demo.createResourceReferences();
 

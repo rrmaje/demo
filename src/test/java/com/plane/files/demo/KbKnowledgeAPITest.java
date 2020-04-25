@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
@@ -38,12 +39,16 @@ public class KbKnowledgeAPITest {
 		StatusLine statusLine = mock(StatusLine.class);
 
 		when(statusLine.getStatusCode()).thenReturn(200);
+		when(statusLine.getReasonPhrase()).thenReturn("");
 		when(httpResponse.getStatusLine()).thenReturn(statusLine);
 		when(httpResponse.getEntity()).thenReturn(entity);
 		when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
 		when(httpClient.execute(any(HttpPatch.class))).thenReturn(httpResponse);
+		when(httpClient.execute(any(HttpGet.class))).thenReturn(httpResponse);
 
 		kb.setHttpClient(httpClient);
+
+		kb.withKbKnowledgeBase();
 
 		try {
 			kb.createResourceReferences();
@@ -59,8 +64,10 @@ public class KbKnowledgeAPITest {
 
         Files.deleteIfExists(Paths.get("src/test/resources", "HELP.html.1"));
         Files.deleteIfExists(Paths.get("src/test/resources/kb", "index.html.1"));
-        Files.deleteIfExists(Paths.get("src/test/resources", "48728526.html.1"));
-
+		Files.deleteIfExists(Paths.get("src/test/resources/kb", "48728526.html.1"));
+		Files.deleteIfExists(Paths.get("src/test/resources/kb", "Bonus-program_181111011.html.1"));
+		Files.deleteIfExists(Paths.get("src/test/resources/kb", "Employee-offers_38240556.html.1"));
+		Files.deleteIfExists(Paths.get("src/test/resources/kb", "Common-Personnel-Handbook-in-Circle-K_38240562.html.1"));
 	}
 
 }

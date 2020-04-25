@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.plane.files.demo.KbKnowledgeBase.KbKnowledge;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -66,10 +67,14 @@ public class KbKnowledgeAPI {
 
     public static final String DEFAULT_INSTANCE = "https://circlekdev.service-now.com";
 
+    private String REFERENCE_TO_CONFLUENCE_EXP = " <div id=\"footer-logo\">.*</div>";
+
+    private Pattern REFERENCE_TO_CONFLUENCE_PATTERN = Pattern.compile(REFERENCE_TO_CONFLUENCE_EXP);
+
     public final static Pattern[] REWRITE_PATTERNS = { Pattern.compile(SRC_PATTERN), Pattern.compile(HREF_PATTERN) };
 
     void createResourceReferences() throws IOException {
-        processFiles(basedir, createReferences, createKb, patchKb);
+        processFiles(basedir, deleteConfluenceReference, createKb, patchKb);
 
         int linksCount = pathToKbSysId.keySet() != null ? pathToKbSysId.keySet().size() : 0;
         int attachmentsCount = pathToAttachmentSysId.keySet() != null ? pathToAttachmentSysId.keySet().size() : 0;
@@ -118,7 +123,7 @@ public class KbKnowledgeAPI {
         log.debug("Writing to {}", newPath);
 
         // create sys_id
-        final String sysId = createKb != null ? createKb.apply(newPath) : null;
+        final String sysId = createKb != null ? createKb.apply(path) : null;
 
         // rewrite references
         try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(newPath))) {
@@ -199,6 +204,20 @@ public class KbKnowledgeAPI {
 
         }
         return line.getLine();
+    };
+
+    Function<KbLine, String> deleteConfluenceReference = (KbLine line) -> {
+
+        String l = this.createReferences.apply(line);
+
+        Matcher m = REFERENCE_TO_CONFLUENCE_PATTERN.matcher(l);
+
+        if (m.find()) {
+            log.debug("Removing Confluence reference {}", m.group());
+            l = l.replace(m.group(), "");
+        }
+
+        return l;
     };
 
     protected boolean isKnowledgeRef(String name) {
@@ -285,7 +304,10 @@ public class KbKnowledgeAPI {
             try {
 
                 Map<String, Object> params = new HashMap<>();
-                params.put("short_description", getShortDesc(name));
+               
+
+                populateKnowledgeBase(name, params);
+
                 String payload = mapper.writeValueAsString(params);
 
                 HttpResponse response = postRecord(payload, KB_KNOWLEDGE_API_PATH);
@@ -304,6 +326,9 @@ public class KbKnowledgeAPI {
                 log.error("Exception when creating kb:", e);
                 System.exit(-1);
 
+            } catch (Exception e) {
+                log.error("Exception when creating kb:", e);
+                System.exit(-1);
             }
         } else {
             log.debug("Reading sys_id from cache {}", sysId);
@@ -320,6 +345,9 @@ public class KbKnowledgeAPI {
 
             Map<String, Object> params = new HashMap<>();
             params.put("text", text);
+
+            // params.put("workflow_state", "published");
+
             String payload = mapper.writeValueAsString(params);
 
             HttpResponse response = patchRecord(payload, KB_KNOWLEDGE_API_PATH + "/" + sysId);
@@ -338,7 +366,8 @@ public class KbKnowledgeAPI {
 
     void handleTableApiResponse(HttpResponse response) {
         if (response.getStatusLine().getStatusCode() < 200 || response.getStatusLine().getStatusCode() >= 300) {
-            log.error("Internal error, server response code {}", response.getStatusLine().getStatusCode());
+            log.error("Internal error, server response code {} \n {}", response.getStatusLine().getStatusCode(),
+                    response.getStatusLine().getReasonPhrase());
             System.exit(-1);
         }
 
@@ -380,7 +409,7 @@ public class KbKnowledgeAPI {
 
     private HttpClient httpClient;
 
-    KbKnowledgeAPI createDefaultHttpClient() {
+    KbKnowledgeAPI withDefaultHttpClient() {
 
         this.httpClient = basicAuthHttpClient();
 
@@ -412,9 +441,7 @@ public class KbKnowledgeAPI {
     String getShortDesc(Path p) {
         String fileName = p.getFileName().toString();
 
-        String desc = fileName.substring(0, fileName.length() - (OUT_EXTENSSION.length()));
-
-        return desc.replaceAll("_[0-9]+", "").replace(DEFAULT_EXTENSSION, "");
+        return fileName.replaceAll("_[0-9]+", "").replace(DEFAULT_EXTENSSION, "");
 
     }
 
@@ -427,6 +454,37 @@ public class KbKnowledgeAPI {
 
     public void setHttpClient(HttpClient httpClient) {
         this.httpClient = httpClient;
+    }
+
+    private KbKnowledgeBase klb;
+
+    KbKnowledgeAPI withKbKnowledgeBase() {
+        klb = new KbKnowledgeBase(instance);
+        klb.setHttpClient(httpClient);
+        return this;
+    }
+
+    private void populateKnowledgeBase(Path html, Map<String, Object> params) throws Exception {
+        if (klb != null) {
+            KbKnowledge kl = klb.getKbKnowledge(html);
+
+            if (kl != null) {
+                params.put("u_assignment_group", kl.getAssignmentGroupId());
+                params.put("short_description", kl.getShortDesc());
+
+            } else {
+                log.warn("Can not find kb_knowledge_base, assignment group not set for {}", html.toString());
+            }
+
+            if (kl != null && kl.getKnowledgeBaseId() != null) {
+                params.put("kb_knowledge_base", kl.getKnowledgeBaseId());
+
+                if (kl.getCategoryId() != null) {
+                    params.put("kb_category", kl.getKnowledgeBaseId());
+                }
+            }
+
+        }
     }
 
 }
