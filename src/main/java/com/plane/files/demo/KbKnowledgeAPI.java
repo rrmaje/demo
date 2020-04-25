@@ -480,7 +480,7 @@ public class KbKnowledgeAPI {
                 params.put("kb_knowledge_base", kl.getKnowledgeBaseId());
 
                 if (kl.getCategoryId() != null) {
-                    params.put("kb_category", kl.getKnowledgeBaseId());
+                    params.put("kb_category", kl.getCategoryId());
                 }
             }
 
