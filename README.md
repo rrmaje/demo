@@ -1,7 +1,7 @@
-# Confulence Scrapping
+# Website scrapping 
 
 A simple program that scraps HTML website and creates ServiceNow Knowledge records. 
-It was developed to convert existing Atlasian Confluence database to ServiceNow.
+It was developed to convert existing legacy database to ServiceNow.
 
 #### Program features
 
