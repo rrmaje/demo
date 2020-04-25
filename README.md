@@ -21,4 +21,4 @@ Creates kb_knowledge records with 'draft' worklow state.
 
 To run the program:
 
-`mvn package && java -jar target/demo-0.0.1-SNAPSHOT.jar`
+`mvn package && java -jar target/demo-0.0.1-SNAPSHOT.jar <path>`
