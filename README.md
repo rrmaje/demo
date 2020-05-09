@@ -1,4 +1,4 @@
-# Website scrapping 
+### Website scrapping 
 
 A simple program that scraps HTML website and creates ServiceNow Knowledge records. 
 It was developed to convert existing legacy database to ServiceNow.
@@ -21,4 +21,4 @@ Creates kb_knowledge records with 'draft' worklow state.
 
 To run the program:
 
-`mvn package && java -jar target/demo-0.0.1-SNAPSHOT.jar`
+`mvn package -DskipTests && java -jar target/demo-0.0.1-SNAPSHOT.jar <path>`
