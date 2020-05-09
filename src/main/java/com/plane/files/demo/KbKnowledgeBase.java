@@ -2,6 +2,8 @@ package com.plane.files.demo;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +14,9 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -25,7 +30,7 @@ public class KbKnowledgeBase {
 
     private String instance;
 
-    protected static Logger log = LoggerFactory.getLogger(KbKnowledgeAPI.class);
+    protected static Logger log = LoggerFactory.getLogger(KbKnowledgeBase.class);
 
     final static String DEFAULT_ASSIGNMENT_GROUP = "HR Europe";
 
@@ -40,7 +45,9 @@ public class KbKnowledgeBase {
 
             kb.setKnowledgeBaseId(getKbIdByName(kb.getKnowledgeBaseTitle()));
 
-            kb.setCategoryId(getKbCategoryIdByName(kb.getCategoryFullName()));
+            if (kb.getCategoryId() == null) {
+                kb.setCategoryId(getKbCategoryIdByName(kb.getCategoryFullName()));
+            }
 
         } catch (IOException e) {
             log.error(e.getMessage(), e);
@@ -106,6 +113,10 @@ public class KbKnowledgeBase {
     final ObjectMapper mapper = new ObjectMapper();
 
     protected String getSysId(HttpResponse response) throws IOException {
+        return getSysId(response, "/result/0/sys_id");
+    }
+
+    protected String getSysId(HttpResponse response, String path) throws IOException {
         HttpEntity respEntity = response.getEntity();
         String sysId = null;
         if (respEntity != null) {
@@ -113,7 +124,7 @@ public class KbKnowledgeBase {
             String result = EntityUtils.toString(respEntity);
 
             JsonNode root = mapper.readTree(result);
-            sysId = root.at("/result/0/sys_id").asText();
+            sysId = root.at(path).asText();
 
             log.debug("Response: {}\n", root.toPrettyString());
 
@@ -211,9 +222,42 @@ public class KbKnowledgeBase {
         this.instance = instance;
     }
 
+    static class KbCategory {
+
+        private KbCategory parent;
+
+        private String label;
+
+        public String getFullName() {
+            if (parent == null || parent.getParent() == null) {
+                return label;
+            } else {
+                return parent.getFullName() + " / " + label;
+            }
+        }
+
+        public KbCategory getParent() {
+            return parent;
+        }
+
+        public void setParent(KbCategory parent) {
+            this.parent = parent;
+        }
+
+        public KbCategory(KbCategory parent, String label) {
+            this.parent = parent;
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+
+    }
+
     public final static String DEFAULT_KB = "Internal HR Knowledge - Europe";
 
-    KbKnowledge fromFile(Path html) throws IOException {
+    KbKnowledge fromFile(Path html) throws Exception {
         Document doc = Jsoup.parse(html.toFile(), "UTF-8");
 
         KbKnowledge kl = new KbKnowledge();
@@ -229,11 +273,11 @@ public class KbKnowledgeBase {
 
             log.debug("Number of slugs to analyze {}, file {}", i, html.toString());
             switch (i) {
-            case 4: {
-                kl.setKnowledgeBaseTitle(slugs.child(2).select("span a").first().text());
-                kl.setCategoryFullName(slugs.child(3).select("span a").first().text());
-                break;
-            }
+            // case 4: {
+            // kl.setKnowledgeBaseTitle(slugs.child(2).select("span a").first().text());
+            // kl.setCategoryFullName(slugs.child(3).select("span a").first().text());
+            // break;
+            // }
             case 3: {
                 kl.setKnowledgeBaseTitle(slugs.child(2).select("span a").first().text());
                 kl.setCategoryFullName(lLevel);
@@ -250,7 +294,22 @@ public class KbKnowledgeBase {
             default: {
                 if (i > 0) {
                     kl.setKnowledgeBaseTitle(slugs.child(2).select("span a").first().text());
-                    kl.setCategoryFullName(slugs.child(slugs.children().size() - 1).select("span a").first().text());
+
+                    KbCategory parent = new KbCategory(null, slugs.child(2).select("span a").first().text());
+
+                    KbCategory curr = null;
+                    for (int k = 3; k < i; k++) {
+                        curr = new KbCategory(parent, slugs.child(k).select("span a").first().text());
+                        parent = curr;
+                    }
+
+                    String nCategory = createIfNotExist(curr);
+
+                    log.debug("Category sys_id: [{}], full_name:[{}]", nCategory, curr.getFullName());
+
+                    kl.setCategoryId(nCategory);
+
+                    kl.setCategoryFullName(curr.getFullName());
                     break;
                 }
             }
@@ -259,10 +318,62 @@ public class KbKnowledgeBase {
 
         kl.setShortDesc(lLevel);
 
-        log.debug("Parsed fields: shortdesc: [{}], knowledgebase: [{}], catgegory: [{}]", kl.getShortDesc(), kl.getKnowledgeBaseTitle(),
-                kl.getCategoryFullName());
+        log.debug("Parsed fields: shortdesc: [{}], knowledgebase: [{}], catgegory: [{}]", kl.getShortDesc(),
+                kl.getKnowledgeBaseTitle(), kl.getCategoryFullName());
 
         return kl;
+    }
+
+    String createIfNotExist(KbCategory c) throws Exception {
+        log.debug("Category [{}], parent [{}]", c.getFullName(),
+                c.getParent() != null ? c.getParent().getFullName() : null);
+        if (c.getParent() == null) {
+            return getKbCategoryIdByName(c.getFullName());
+        } else {
+            String id = getKbCategoryIdByName(c.getFullName());
+            if (id == null || id.isEmpty()) {
+                String p = getKbCategoryIdByName(c.getParent().getFullName());
+                if (p == null || p.isEmpty()) {
+                    p = createIfNotExist(c.getParent());
+                }
+                return createKbCategory(c.getLabel(), p,
+                        c.getParent() == null ? "kb_knowledge_base" : "kb_category");
+            }
+            return id;
+        }
+    }
+
+    String createKbCategory(String label, String parentSysId, String parentTable) throws Exception {
+
+        Map<String, Object> params = new HashMap<>();
+
+        params.put("parent_id", parentSysId);
+        params.put("parent_table", parentTable);
+        params.put("label", label);
+        params.put("value", Math.abs(hashCode()));
+
+        String payload = mapper.writeValueAsString(params);
+
+        log.debug("Creating category from data: {}", payload);
+
+        StringEntity entity = new StringEntity(payload, ContentType.APPLICATION_JSON);
+
+        HttpPost request = new HttpPost(instance + "/api/now/table/kb_category");
+
+        request.setEntity(entity);
+
+        if (this.httpClient == null) {
+            log.error("HttpClient not set");
+            throw new IllegalStateException("HttpClient not set");
+        }
+
+        HttpResponse response = httpClient.execute(request);
+        log.info("Response status: {}", response.getStatusLine().getStatusCode());
+
+        handleTableApiResponse(response);
+
+        return getSysId(response, "/result/sys_id");
+
     }
 
     String extractLowestLevel(Document doc) {
