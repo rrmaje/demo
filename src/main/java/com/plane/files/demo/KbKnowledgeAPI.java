@@ -1,7 +1,9 @@
 package com.plane.files.demo;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -67,14 +69,10 @@ public class KbKnowledgeAPI {
 
     public static final String DEFAULT_INSTANCE = "https://circlekdev.service-now.com";
 
-    private String REFERENCE_TO_CONFLUENCE_EXP = " <div id=\"footer-logo\">.*</div>";
-
-    private Pattern REFERENCE_TO_CONFLUENCE_PATTERN = Pattern.compile(REFERENCE_TO_CONFLUENCE_EXP);
-
     public final static Pattern[] REWRITE_PATTERNS = { Pattern.compile(SRC_PATTERN), Pattern.compile(HREF_PATTERN) };
 
     void createResourceReferences() throws IOException {
-        processFiles(basedir, deleteConfluenceReference, createKb, patchKb);
+        processFiles(basedir, createReferences, createKb, patchKb);
 
         int linksCount = pathToKbSysId.keySet() != null ? pathToKbSysId.keySet().size() : 0;
         int attachmentsCount = pathToAttachmentSysId.keySet() != null ? pathToAttachmentSysId.keySet().size() : 0;
@@ -125,9 +123,13 @@ public class KbKnowledgeAPI {
         // create sys_id
         final String sysId = createKb != null ? createKb.apply(path) : null;
 
+        //pre-process file
+       String text = KbProcessor.processText(path);
+
         // rewrite references
-        try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(newPath))) {
-            Files.lines(path).map(x -> {
+        try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(newPath));
+         BufferedReader br = new BufferedReader(new StringReader(text))) {
+            br.lines().map(x -> {
                 return new KbLine(sysId, x);
             }).forEach(k -> {
 
@@ -204,20 +206,6 @@ public class KbKnowledgeAPI {
 
         }
         return line.getLine();
-    };
-
-    Function<KbLine, String> deleteConfluenceReference = (KbLine line) -> {
-
-        String l = this.createReferences.apply(line);
-
-        Matcher m = REFERENCE_TO_CONFLUENCE_PATTERN.matcher(l);
-
-        if (m.find()) {
-            log.debug("Removing Confluence reference {}", m.group());
-            l = l.replace(m.group(), "");
-        }
-
-        return l;
     };
 
     protected boolean isKnowledgeRef(String name) {
@@ -341,6 +329,7 @@ public class KbKnowledgeAPI {
         log.info("Patching Knowledge record from [{}]", name);
 
         try {
+            
             String text = new String(Files.readAllBytes(name));
 
             Map<String, Object> params = new HashMap<>();
