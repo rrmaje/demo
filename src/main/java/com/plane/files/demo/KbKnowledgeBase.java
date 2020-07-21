@@ -36,9 +36,28 @@ public class KbKnowledgeBase {
 
     final static String DEFAULT_SHORT_DESC = "Personnel Handbook";
 
+    static Map<String, String> languages;
+
+    private static boolean useTranslatedVersion = false;
+
+    static Map<String, String> getSupportedLanguages() {
+        if (languages == null) {
+            languages = new HashMap<>();
+            languages.put("Denmark", "da");
+            languages.put("Personnel Handbook - Poland", "pl");
+            languages.put("Sweden", "sv");
+            languages.put("Estonia", "et");
+            languages.put("Latvia", "lv");
+            languages.put("Lithuania", "lt");
+            languages.put("Norway", "nb");
+        }
+
+        return languages;
+    }
+
     KbKnowledge getKbKnowledge(Path html) throws Exception {
 
-        KbKnowledge kb = null;
+        final KbKnowledge kb;
         try {
 
             kb = fromFile(html);
@@ -49,6 +68,12 @@ public class KbKnowledgeBase {
                 kb.setCategoryId(getKbCategoryIdByName(kb.getCategoryFullName()));
             }
 
+            if (KbKnowledgeBase.useTranslatedVersion) {
+                getSupportedLanguages().keySet().stream().filter(k -> kb.getKnowledgeBaseTitle().contains(k)).findAny()
+                        .ifPresent(k -> kb.setLang(languages.get(k)));
+
+                log.debug("Path [{}], Language [{}]", html.toString(), kb.getLang());
+            }
         } catch (IOException e) {
             log.error(e.getMessage(), e);
             return null;
@@ -147,6 +172,8 @@ public class KbKnowledgeBase {
 
         private String categoryId;
 
+        private String lang = "en";
+
         private String shortDesc;
 
         private String knowledgeBaseId;
@@ -212,6 +239,14 @@ public class KbKnowledgeBase {
         public void setShortDesc(String shortDesc) {
             this.shortDesc = shortDesc;
         }
+
+        public String getLang() {
+            return lang;
+        }
+
+        public void setLang(String lang) {
+            this.lang = lang;
+        }
     }
 
     public void setHttpClient(HttpClient httpClient) {
@@ -273,18 +308,47 @@ public class KbKnowledgeBase {
 
             log.debug("Number of slugs to analyze {}, file {}", i, html.toString());
             switch (i) {
-            // case 4: {
-            // kl.setKnowledgeBaseTitle(slugs.child(2).select("span a").first().text());
-            // kl.setCategoryFullName(slugs.child(3).select("span a").first().text());
-            // break;
-            // }
             case 3: {
-                kl.setKnowledgeBaseTitle(slugs.child(2).select("span a").first().text());
-                kl.setCategoryFullName(lLevel);
+                // default
+                String potentialKblTitle = slugs.child(2).select("span a").first().text();
+
+                String kblId = getKbIdByName(potentialKblTitle);
+
+                if (kblId != null && !kblId.isEmpty()) {
+                    // this is edge case
+                    kl.setCategoryFullName(lLevel);
+                    kl.setKnowledgeBaseTitle(potentialKblTitle);
+                } else {
+                    // can be a variant with kb_knowledge_base under index 1
+                    potentialKblTitle = slugs.child(1).select("span a").first().text();
+
+                    String categoryLabel = slugs.child(2).select("span a").first().text();
+
+                    kl.setKnowledgeBaseTitle(potentialKblTitle);
+
+                    KbCategory parent = new KbCategory(null, kl.getKnowledgeBaseTitle());
+                    KbCategory curr = new KbCategory(parent, categoryLabel);
+
+                    String nCategory = createIfNotExist(curr);
+
+                    kl.setCategoryId(nCategory);
+
+                    kl.setCategoryFullName(curr.getFullName());
+                }
+
                 break;
             }
             case 2: {
                 kl.setKnowledgeBaseTitle(lLevel);
+
+                KbCategory curr = new KbCategory(null, lLevel);
+
+                String nCategory = createIfNotExist(curr);
+
+                kl.setCategoryId(nCategory);
+
+                kl.setCategoryFullName(curr.getFullName());
+
                 break;
             }
             case 1: {
@@ -293,12 +357,25 @@ public class KbKnowledgeBase {
             }
             default: {
                 if (i > 0) {
-                    kl.setKnowledgeBaseTitle(slugs.child(2).select("span a").first().text());
 
-                    KbCategory parent = new KbCategory(null, slugs.child(2).select("span a").first().text());
+                    // default
+                    String potentialKblTitle = slugs.child(2).select("span a").first().text();
+
+                    String kblId = getKbIdByName(potentialKblTitle);
+
+                    int k = 3;
+                    if (kblId == null || kblId.isEmpty()) {
+                        // can be a variant with kb_knowledge_base under index 1
+                        potentialKblTitle = slugs.child(1).select("span a").first().text();
+                        k = 2;
+                    }
+
+                    kl.setKnowledgeBaseTitle(potentialKblTitle);
+
+                    KbCategory parent = new KbCategory(null, kl.getKnowledgeBaseTitle());
 
                     KbCategory curr = null;
-                    for (int k = 3; k < i; k++) {
+                    for (; k < i; k++) {
                         curr = new KbCategory(parent, slugs.child(k).select("span a").first().text());
                         parent = curr;
                     }
@@ -328,7 +405,18 @@ public class KbKnowledgeBase {
         log.debug("Category [{}], parent [{}]", c.getFullName(),
                 c.getParent() != null ? c.getParent().getFullName() : null);
         if (c.getParent() == null) {
-            return getKbCategoryIdByName(c.getFullName());
+
+            String nCategory = getKbCategoryIdByName(c.getFullName());
+
+            if (nCategory == null || nCategory.isEmpty()) {
+
+                String kblId = getKbIdByName(c.getLabel());
+
+                nCategory = createKbCategory(c.getLabel(), kblId, "kb_knowledge_base");
+            }
+
+            return nCategory;
+
         } else {
             String id = getKbCategoryIdByName(c.getFullName());
             if (id == null || id.isEmpty()) {
@@ -336,8 +424,7 @@ public class KbKnowledgeBase {
                 if (p == null || p.isEmpty()) {
                     p = createIfNotExist(c.getParent());
                 }
-                return createKbCategory(c.getLabel(), p,
-                        c.getParent() == null ? "kb_knowledge_base" : "kb_category");
+                return createKbCategory(c.getLabel(), p, c.getParent() == null ? "kb_knowledge_base" : "kb_category");
             }
             return id;
         }
@@ -389,5 +476,13 @@ public class KbKnowledgeBase {
 
         return DEFAULT_SHORT_DESC;
 
+    }
+
+    public static boolean isUseTranslatedVersion() {
+        return useTranslatedVersion;
+    }
+
+    static void setUseTranslatedVersion(boolean useTranslatedVersion) {
+        KbKnowledgeBase.useTranslatedVersion = useTranslatedVersion;
     }
 }

@@ -2,6 +2,7 @@ package com.plane.files.demo;
 
 import java.io.Console;
 import java.nio.file.Paths;
+import java.util.Optional;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -14,8 +15,9 @@ public class DemoApplication {
 
 		Console console = System.console();
 
-		if (args.length !=1 && args.length != 4)   {
-			System.err.println("\nUsage: java -Dfile.encoding=\"UTF-8\" -jar path_to_jar kb_directory <instance> <user> <pass>\n");
+		if (args.length != 1 && args.length != 4) {
+			System.err.println(
+					"\nUsage: java -Dfile.encoding=\"UTF-8\" -jar path_to_jar kb_directory <instance> <user> <pass>\n");
 			System.exit(-1);
 		}
 
@@ -35,11 +37,16 @@ public class DemoApplication {
 			pass = String.valueOf(pwd);
 		}
 
-		final KbKnowledgeAPI demo = new KbKnowledgeAPI(user, pass, instance, Paths.get(args[0]));
+		final KbKnowledgeAPI app = new KbKnowledgeAPI(user, pass, instance, Paths.get(args[0]));
 
-		demo.withDefaultHttpClient().withKbKnowledgeBase();
+		app.withDefaultHttpClient().withKbKnowledgeBase();
 
-		demo.createResourceReferences();
+		Optional.ofNullable(System.getenv("useTranslatedVersions")).ifPresent(v -> {
+			app.withTranslatedVersions();
+		});
+		
+
+		app.createResourceReferences();
 
 	}
 

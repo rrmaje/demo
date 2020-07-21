@@ -453,6 +453,12 @@ public class KbKnowledgeAPI {
         return this;
     }
 
+    KbKnowledgeAPI withTranslatedVersions() {
+        KbKnowledgeBase.setUseTranslatedVersion(true);
+        log.debug("Enabled useTranslatedVersions");
+        return this;
+    }
+
     private void populateKnowledgeBase(Path html, Map<String, Object> params) throws Exception {
         if (klb != null) {
             KbKnowledge kl = klb.getKbKnowledge(html);
@@ -460,6 +466,7 @@ public class KbKnowledgeAPI {
             if (kl != null) {
                 params.put("u_assignment_group", kl.getAssignmentGroupId());
                 params.put("short_description", kl.getShortDesc());
+                params.put("language", kl.getLang());
 
             } else {
                 log.warn("Can not find kb_knowledge_base, assignment group not set for {}", html.toString());

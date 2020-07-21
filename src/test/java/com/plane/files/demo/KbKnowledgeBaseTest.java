@@ -48,19 +48,7 @@ public class KbKnowledgeBaseTest {
 		StringEntity entity = new StringEntity("{\"result\":[{\"sys_id\": \"" + SYS_ID + "\"}]}",
 				ContentType.APPLICATION_JSON);
 
-		HttpClient httpClient = mock(HttpClient.class);
-		HttpResponse httpResponse = mock(HttpResponse.class);
-
-		StatusLine statusLine = mock(StatusLine.class);
-
-		when(statusLine.getStatusCode()).thenReturn(200);
-		when(statusLine.getReasonPhrase()).thenReturn("");
-		when(httpResponse.getStatusLine()).thenReturn(statusLine);
-		when(httpResponse.getEntity()).thenReturn(entity);
-		when(httpClient.execute(any(HttpGet.class))).thenReturn(httpResponse);
-		when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
-
-		kbl.setHttpClient(httpClient);
+		kbl.setHttpClient(mockAPICalls(entity));
 
 		KbKnowledge kl = null;
 
@@ -96,45 +84,37 @@ public class KbKnowledgeBaseTest {
 		final Path[] paths = { Paths.get("src/test/resources/kb", "48728526.html"),
 				Paths.get("src/test/resources/kb", "Bonus-program_181111011.html"),
 				Paths.get("src/test/resources/kb", "Common-Personnel-Handbook-in-Circle-K_38240562.html"),
-				Paths.get("src/test/resources/kb", "Bonus-program_181111012.html"), };
+				Paths.get("src/test/resources/kb", "Bonus-program_181111012.html"),
+				Paths.get("src/test/resources/kb", "Personnel-Handbook-Norway_38240668.html"), };
 
 		final String[][] hierarchy = { { "Personnel Handbook - Sweden", "Blanketter", null },
 				{ "Common Personnel Handbook in Circle K", "Employee offers / Bonus program / Performance bonus",
 						"Performance bonus" },
 				{ "Common Personnel Handbook in Circle K", null },
-				{ "Common Personnel Handbook in Circle K", "Employee offers", "Employee offers" } };
+				{ "Common Personnel Handbook in Circle K", "Employee offers", "Employee offers" },
+				{ "Personnel Handbook Norway", "Personnel Handbook Norway" } };
 
 		final String ROOT_SYS_ID = new RandomString(32).nextString();
 
 		KbKnowledgeBase kbl = new KbKnowledgeBase("instance") {
 
 			@Override
-			String getKbCategoryIdByName(String kbCategory) throws Exception {
-				return "Personnel Handbook - Sweden".equals(kbCategory)
-						|| "Common Personnel Handbook in Circle K".equals(kbCategory) ? ROOT_SYS_ID : null;
+			String getKbIdByName(String kbName) throws Exception {
+
+				if (kbName.contains("Personnel Handbook")) {
+					return ROOT_SYS_ID;
+				}
+				return super.getKbIdByName(kbName);
 			}
 
 		};
 
 		final String NEW_SYS_ID = new RandomString(32).nextString();
 
-		HttpClient httpClient = mock(HttpClient.class);
-
-		StatusLine statusLine = mock(StatusLine.class);
-
-		when(statusLine.getStatusCode()).thenReturn(200);
-		when(statusLine.getReasonPhrase()).thenReturn("");
-
 		StringEntity createEntity = new StringEntity("{\"result\":{\"sys_id\": \"" + NEW_SYS_ID + "\"}}",
 				ContentType.APPLICATION_JSON);
 
-		HttpResponse httpPostResponse = mock(HttpResponse.class);
-
-		when(httpPostResponse.getStatusLine()).thenReturn(statusLine);
-		when(httpPostResponse.getEntity()).thenReturn(createEntity);
-		when(httpClient.execute(any(HttpPost.class))).thenReturn(httpPostResponse);
-
-		kbl.setHttpClient(httpClient);
+		kbl.setHttpClient(mockAPICalls(createEntity));
 
 		KbKnowledge kl = null;
 
@@ -158,6 +138,73 @@ public class KbKnowledgeBaseTest {
 			i++;
 		}
 
+	}
+
+	@Test
+	void testWhenSupportedLanguageThenLanguageIsSet() throws IOException {
+
+		final Path[] paths = { Paths.get("src/test/resources/kb", "48728526.html"),
+				Paths.get("src/test/resources/kb", "Bonus-program_181111011.html"),
+				Paths.get("src/test/resources/kb", "77955928.html") };
+
+		final String[] languages = { "sv", "en", "nb" };
+
+		final String SYS_ID = new RandomString(32).nextString();
+
+		KbKnowledgeBase kbl = new KbKnowledgeBase("instance") {
+
+			@Override
+			String getKbIdByName(String kbName) throws Exception {
+
+				if (!kbName.contains("Personnel")) {
+					return "";
+				}
+				return super.getKbIdByName(kbName);
+			}
+
+		};
+
+		KbKnowledgeBase.setUseTranslatedVersion(true);
+
+		StringEntity entity = new StringEntity("{\"result\":[{\"sys_id\": \"" + SYS_ID + "\"}]}",
+				ContentType.APPLICATION_JSON);
+
+		kbl.setHttpClient(mockAPICalls(entity));
+
+		KbKnowledge kl = null;
+
+		int i = 0;
+		for (Path html : paths) {
+			try {
+				kl = kbl.getKbKnowledge(html);
+			} catch (Exception e) {
+				fail(e.getMessage(), e);
+			}
+
+			assertNotNull(kl);
+
+			assertEquals(languages[i], kl.getLang());
+
+			i++;
+		}
+
+	}
+
+	private HttpClient mockAPICalls(StringEntity entity) throws IOException {
+
+		HttpClient httpClient = mock(HttpClient.class);
+		HttpResponse httpResponse = mock(HttpResponse.class);
+
+		StatusLine statusLine = mock(StatusLine.class);
+
+		when(statusLine.getStatusCode()).thenReturn(200);
+		when(statusLine.getReasonPhrase()).thenReturn("");
+		when(httpResponse.getStatusLine()).thenReturn(statusLine);
+		when(httpResponse.getEntity()).thenReturn(entity);
+		when(httpClient.execute(any(HttpGet.class))).thenReturn(httpResponse);
+		when(httpClient.execute(any(HttpPost.class))).thenReturn(httpResponse);
+
+		return httpClient;
 	}
 
 	@AfterAll

@@ -65,10 +65,12 @@ public class KbKnowledgeAPITest {
         Files.deleteIfExists(Paths.get("src/test/resources", "HELP.html.1"));
         Files.deleteIfExists(Paths.get("src/test/resources/kb", "index.html.1"));
 		Files.deleteIfExists(Paths.get("src/test/resources/kb", "48728526.html.1"));
+		Files.deleteIfExists(Paths.get("src/test/resources/kb", "77955928.html.1"));
 		Files.deleteIfExists(Paths.get("src/test/resources/kb", "Bonus-program_181111011.html.1"));
 		Files.deleteIfExists(Paths.get("src/test/resources/kb", "Bonus-program_181111012.html.1"));
 		Files.deleteIfExists(Paths.get("src/test/resources/kb", "Employee-offers_38240556.html.1"));
 		Files.deleteIfExists(Paths.get("src/test/resources/kb", "Common-Personnel-Handbook-in-Circle-K_38240562.html.1"));
+		Files.deleteIfExists(Paths.get("src/test/resources/kb", "Personnel-Handbook-Norway_38240668.html.1"));
 	}
-
+	
 }
