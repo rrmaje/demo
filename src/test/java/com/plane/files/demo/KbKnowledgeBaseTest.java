@@ -85,14 +85,16 @@ public class KbKnowledgeBaseTest {
 				Paths.get("src/test/resources/kb", "Bonus-program_181111011.html"),
 				Paths.get("src/test/resources/kb", "Common-Personnel-Handbook-in-Circle-K_38240562.html"),
 				Paths.get("src/test/resources/kb", "Bonus-program_181111012.html"),
-				Paths.get("src/test/resources/kb", "Personnel-Handbook-Norway_38240668.html"), };
+				Paths.get("src/test/resources/kb", "Personnel-Handbook-Norway_38240668.html"),
+				Paths.get("src/test/resources/kb", "77955928.html") };
 
 		final String[][] hierarchy = { { "Personnel Handbook - Sweden", "Blanketter", null },
 				{ "Common Personnel Handbook in Circle K", "Employee offers / Bonus program / Performance bonus",
 						"Performance bonus" },
 				{ "Common Personnel Handbook in Circle K", null },
 				{ "Common Personnel Handbook in Circle K", "Employee offers", "Employee offers" },
-				{ "Personnel Handbook Norway", "Personnel Handbook Norway" } };
+				{ "Personnel Handbook Norway", "Personnel Handbook Norway" },
+				{ "Personnel Handbook Norway", null} };
 
 		final String ROOT_SYS_ID = new RandomString(32).nextString();
 

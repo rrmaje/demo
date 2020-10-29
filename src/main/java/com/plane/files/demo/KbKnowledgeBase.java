@@ -339,7 +339,18 @@ public class KbKnowledgeBase {
                 break;
             }
             case 2: {
-                kl.setKnowledgeBaseTitle(lLevel);
+                
+
+                String kblId = getKbIdByName(lLevel);
+
+                if (kblId != null && !kblId.isEmpty()) {
+                    kl.setKnowledgeBaseTitle(lLevel);
+                } else {
+                    String potentialKblTitle = slugs.child(1).select("span a").first().text();
+                    
+                    kl.setKnowledgeBaseTitle(potentialKblTitle);
+                    
+                }
 
                 KbCategory curr = new KbCategory(null, lLevel);
 
